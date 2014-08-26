@@ -28,5 +28,9 @@
   "main": "./lib/index",
   "scripts": {
     "prepublish": "mimosa build"
+  },
+  "dependencies": {
+    "jshint": "^2.5.5",
+    "lodash": "^2.4.1"
   }
 }

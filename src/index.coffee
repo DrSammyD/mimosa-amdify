@@ -1,12 +1,17 @@
 "use strict"
 
 config = require './config'
-
+config = require 'jshint'
 defineRegex = /(?:(?!\.))define\(/
-
-logger = null
+logger = null  
 
 registration = (mimosaConfig, register) ->
+  ending = mimosaConfig.amdify.ending||ending
+  starting = mimosaConfig.amdify.starting||starting
+  
+
+  createEndingRegex= mimosaConfig.amdify.createEndingRegex||createEndingRegex
+  endingRegex=createEndingRegex(mimosaConfig.amdify.endingRegex||endingRegex, mimosaConfig.amdify)
   logger = mimosaConfig.log
   register ['add','update','buildFile'], 'afterCompile', _applyCommonJSWrapper,  [mimosaConfig.extensions.javascript...]
 
@@ -15,30 +20,23 @@ _applyCommonJSWrapper = (mimosaConfig, options, next) ->
   return next() unless hasFiles
 
   for file in options.files
-    if mimosaConfig.requireCommonjs?.excludeRegex? and file.inputFileName.match mimosaConfig.requireCommonjs.excludeRegex
-      logger.debug "skipping commonjs wrapping for [[ #{file.inputFileName} ]], file is excluded via regex"
-    else if mimosaConfig.requireCommonjs.exclude.indexOf(file.inputFileName) > -1
-      logger.debug "skipping commonjs wrapping for [[ #{file.inputFileName} ]], file is excluded via string path"
-    else
-      if file.outputFileText?
-        if file.outputFileText.match defineRegex
-          if logger.isDebug()
-            logger.debug "Not wrapping [[ #{file.inputFileName} ]], it already contains a define block"
-        else
-          if logger.isDebug()
-            logger.debug "CommonJS wrapping [[ #{file.inputFileName} ]]"
+    if file.outputFileText?
+      if file.outputFileText.match defineRegex
+        if logger.isDebug()
+          logger.debug "Not wrapping [[ #{file.inputFileName} ]], it already contains a define block"
+      else if file.outputFileText.match endingRegex && !mimosaConfig.amdify?[file.inputFileName]?
+          logger.debug "Not wrapping [[ #{file.inputFileName} ]], it already contains a define block"
+      else
+        if logger.isDebug()
+          logger.debug "amdify wrapping [[ #{file.inputFileName} ]]"
 
-          file.outputFileText = _wrap(file.outputFileText)
+        file.outputFileText = _wrap(file.outputFileText,mimosaConfig.amdify)
+    else
+      logger.debug "skipping amdify wrapping for [[ #{file.inputFileName} ]], file has no text"
   next()
 
-_wrap = (text) ->
-  """
-  define(function (require, exports, module) {
-    var __filename = module.uri || "", __dirname = __filename.substring(0, __filename.lastIndexOf("/") + 1);
-    #{text}
-  });
-
-  """
+_wrap = (text, amdify) ->
+  fileConf=mimosaConfig.amdify?[file.inputFileName]
 
 module.exports =
   registration: registration
