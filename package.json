@@ -1,18 +1,18 @@
 {
-  "name": "mimosa-require-commonjs",
+  "name": "mimosa-amdify",
   "version": "1.0.1",
-  "homepage": "https://github.com/dbashford/mimosa-require-commonjs",
-  "author": "David Bashford",
+  "homepage": "https://github.com/DrSammyD/mimosa-amdify",
+  "author": "Sam Armstrong",
   "description": "A CommonJS wrapping module for Mimosa AMD/RequireJS projects",
   "contributors": [
     {
-      "name": "David Bashford",
-      "email": "dbashford@hotmail.com"
+      "name": "Sam Armstrong",
+      "email": "DrSammyD@gmail.com"
     }
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/dbashford/mimosa-require-commonjs"
+    "url": "https://github.com/DrSammyD/mimosa-amdify"
   },
   "keywords": [
     "mimosa",
