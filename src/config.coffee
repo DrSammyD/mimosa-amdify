@@ -5,6 +5,9 @@ exports.defaults = ->
   amdify:
     path: './assets/javascripts/app/'
     envVars: ['browser','ecmaIdentifiers','reservedVars']
+    amdifyDir:
+      path: ".mimosa/amdify"
+      clean: true
  
 exports.placeholder = ->
   """
