@@ -5,6 +5,8 @@ exports.defaults = ->
   amdify:
     path: './assets/javascripts/app/'
     envVars: ['browser','ecmaIdentifiers','reservedVars']
+    excludePaths:['../vendor/requirejs/require.js']
+    includePaths: ['../vendor']
     amdifyDir:
       path: ".mimosa/amdify"
       clean: true
@@ -17,6 +19,11 @@ exports.placeholder = ->
       path: './assets/javascripts/app/'
       envVars: ['browser','ecmaIdentifiers','reservedVars']
       globals: {'jquery':['jQuery','$']}
+      excludePaths:['../vendor/requirejs/require.js']
+      includePaths: ['../vendor']
+      shim:
+        '../vendor/modernizr/modernizr.js':
+          export: ['Modernizr']
   """
  
 exports.validate = (config, validators) ->
