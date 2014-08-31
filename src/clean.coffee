@@ -27,7 +27,7 @@ _cleanFilesViaTrackingInfo = (mimosaConfig) ->
   track.removeTrackFiles mimosaConfig
   logger.success "Amdify files cleaned."
 
-exports.amdifyClean = (mimosaConfig, opts) ->
+exports.amdifyClean = (mimosaConfig) ->
   logger = mimosaConfig.log
 
   unless mimosaConfig.amdify

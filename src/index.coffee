@@ -32,11 +32,12 @@ _setJshintResult = (file, shim, relName)->
   result.replacements=[]
   result.usage = []
   text = file.inputFileText
-  _(jsh.JSHINT.data().implieds).pluck('name').difference(envVars).concat(_.flatten([shim.export||[]])).each (implied)->
-    glreg = new RegExp(globalsRegex[0]+implied+globalsRegex[1], 'g')
-    if text.replace(stripCommentsRegex,'').match(glreg)
-      result.replacements.push(implied)
-      text= "var #{implied}; #{text.replace(glreg, implied+'=')}"
+  if _(jsh.JSHINT.data().implieds).pluck('name').any((item)-> return item == "window")
+    _(jsh.JSHINT.data().implieds).pluck('name').concat(_(amdify.globals).keys()).difference(envVars).concat(_.flatten([shim.export||[]])).each (implied)->
+      glreg = new RegExp(globalsRegex[0]+implied+globalsRegex[1], 'g')
+      if text.replace(stripCommentsRegex,'').match(glreg)
+        result.replacements.push(implied)
+        text= "var #{implied}; #{text.replace(glreg, implied+'=')}"
   _(amdify.globals).keys().each (global)->
     glreg = new RegExp(globalsUsageReggex[0]+global+globalsUsageReggex[1], 'g')
     if text.replace(stripCommentsRegex,'').match(glreg) and !text.match(/var\s+?window[\W]/)
@@ -55,7 +56,7 @@ _analizeFiles = (mimosaConfig, options, next) ->
   _(options.files).filter (file)->
     maybe=_([amdify.includePaths]).flatten().map (include)->
       relative= path.relative(path.relative(amdify.path,file.inputFileName), include)
-      if !_(relative.split("/")).filter((item) ->
+      if !_(relative.split(path.sep)).filter((item) ->
         item isnt ".."
       ).value().length then relative.match(/\.\./g) else if relative=='' then [] else null
     .filter((include)-> include || include == 0)
@@ -63,7 +64,7 @@ _analizeFiles = (mimosaConfig, options, next) ->
 
     (_([amdify.excludePaths]).flatten().map (exclude)->
       relative = path.relative(path.relative(amdify.path,file.inputFileName), exclude)
-      if !_(relative.split("/")).filter((item) ->
+      if !_(relative.split(path.sep)).filter((item) ->
         item isnt ".."
       ).value().length then relative.match(/\.\./g) else if relative=='' then [] else null
     .filter()
@@ -75,7 +76,7 @@ _analizeFiles = (mimosaConfig, options, next) ->
       if logger.isDebug()
         logger.debug "Not wrapping [[ #{file.inputFileName} ]], it already contains a define block"
     else
-      relName= path.relative(amdify.path,file.inputFileName)
+      relName= path.relative(amdify.path,file.inputFileName).split(path.sep).join('/')
       shim = shims.filter((pair)-> pair[0] == relName).map((pair)-> pair[1]).first()||{}
       _setJshintResult(file,shim,relName)
   track.track(mimosaConfig,jshintResults);
@@ -85,7 +86,7 @@ _applyRequireJSWrapper = (mimosaConfig, options, next) ->
   hasFiles = options.files?.length > 0
   return next() unless hasFiles
   _(options.files).each (file)->    
-    relName= path.relative(amdify.path,file.inputFileName)
+    relName= path.relative(amdify.path,file.inputFileName).split(path.sep).join('/')
     shim = shims.filter((pair)-> pair[0] == relName).map((pair)-> pair[1]).first()||{}
     fileAnalysis= jshintResults[shim.name||relName]
     if fileAnalysis
@@ -94,7 +95,7 @@ _applyRequireJSWrapper = (mimosaConfig, options, next) ->
       file.outputFileText = _wrap(file, fileAnalysis,mimosaConfig.amdify)
   next()
 
-_wrap = (file, fileAnalysis, amdify) ->
+_wrap = (file, fileAnalysis) ->
 
   _(fileAnalysis.replacements).each (implied)->
     glreg = new RegExp(globalsRegex[0]+implied+globalsRegex[1], 'g')
