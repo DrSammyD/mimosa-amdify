@@ -27,13 +27,13 @@ registration = (mimosaConfig, register) ->
   register ['add','update','buildExtension'], 'beforeWrite', _applyRequireJSWrapper,  [mimosaConfig.extensions.javascript...]
 
 _setJshintResult = (file, shim, relName)->
-  jsh.JSHINT(file.inputFileText,{undef:true,predef:envVars});
+  jsh.JSHINT(file.inputFileText,{latedef:false},{});
   result = {shim:shim}
   result.replacements=[]
   result.usage = []
   text = file.inputFileText
   if _(jsh.JSHINT.data().implieds).pluck('name').any((item)-> return item == "window")
-    _(jsh.JSHINT.data().implieds).pluck('name').concat(_(amdify.globals).keys()).difference(envVars).concat(_.flatten([shim.export||[]])).each (implied)->
+    _(jsh.JSHINT.data().implieds).pluck('name').concat(_(amdify.globals).keys().value()).difference(envVars).concat(_.flatten([shim.export||[]])).each (implied)->
       glreg = new RegExp(globalsRegex[0]+implied+globalsRegex[1], 'g')
       if text.replace(stripCommentsRegex,'').match(glreg)
         result.replacements.push(implied)
@@ -43,11 +43,17 @@ _setJshintResult = (file, shim, relName)->
     if text.replace(stripCommentsRegex,'').match(glreg) and !text.match(/var\s+?window[\W]/)
       result.usage.push(global)
       text= text.replace(glreg, global)
-  jsh.JSHINT(text);
+  jsh.JSHINT(text,{latedef:false},{});
   file = result
 
   file.deps = _(jsh.JSHINT.data().implieds).pluck('name').difference(envVars).value();
-  file.exports = if file.shim.export then _.flatten([file.shim.export]) else _(jsh.JSHINT.data().globals).difference(envVars).filter((item)-> item!='undefined').value();
+  if (jshglobals=_(jsh.JSHINT.data().globals).filter((item)-> item!='undefined').value()).length
+    actualGlobals= _(text.match(new RegExp("\\S[\\n\\s]+?("+jshglobals.join('|')+")[\\s\\n]*?=",'g')))
+    .filter((exp)->exp.indexOf('.')!=1).uniq()
+    .map((exp)-> exp.replace(/\S[\n\s]+?/,'').replace(/[\s\n]*?=/,'')).value()
+  else
+    actualGlobals=[]
+  file.exports = if file.shim.export then _.flatten([file.shim.export]) else actualGlobals
   jshintResults[file.shim.name||relName]=file
 
 _analizeFiles = (mimosaConfig, options, next) ->
