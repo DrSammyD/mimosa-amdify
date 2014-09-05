@@ -11,23 +11,23 @@ defineRegex = /(?:^\s*|[}{\(\);,\n\?\&]\s*)define\s*\(\s*("[^"]+"\s*,\s*|'[^']+'
 globalsRegex = ["window(\\.|\\[[\\\"\\\'])", "([\\\"\\\']\\])?\\s*?="]
 globalsUsageReggex =["window(\\.|\\[[\\\"\\\'])", "([\\\"\\\']\\])?"]
 logger = null
-reqEnvVars =_(require.cache).pairs().filter((item)-> item[0].indexOf('vars.js')!=-1&&item[1].parent.id.indexOf('jshint.js')!=-1).map((item)-> item[1].exports).first();
+reqEnvVars =_(require.cache).pairs().filter((item)-> item[0].indexOf('vars.js')!=-1&&item[1].parent.id.indexOf('jshint.js')!=-1).map((item)-> item[1].exports).first()
 envVars = []
 jshintResults={}
-shims = null;
-amdify=null;
+shims = null
+amdify=null
 registration = (mimosaConfig, register) ->
   logger = mimosaConfig.log
   amdify = mimosaConfig.amdify
   envVars = _(reqEnvVars).pairs().filter((vars)->_(amdify.envVars).contains(vars[0])).map((vars)-> _.keys(vars[1])).flatten().value()
   amdify.globals=_(amdify.globals).map((val,key)->_(val).map((item)-> [item,key]).value()).flatten(true).object().value()
-  shims = _(amdify.shim).pairs();
-  jshintResults = track.getPreviousAnalyzedFileList(mimosaConfig);
+  shims = _(amdify.shim).pairs()
+  jshintResults = track.getPreviousAnalyzedFileList(mimosaConfig)
   register ['add','update','buildFile'], 'read', _analizeFiles,  [mimosaConfig.extensions.javascript...]
   register ['add','update','buildExtension'], 'beforeWrite', _applyRequireJSWrapper,  [mimosaConfig.extensions.javascript...]
 
 _setJshintResult = (file, shim, relName)->
-  jsh.JSHINT(file.inputFileText,{latedef:false},{});
+  jsh.JSHINT(file.inputFileText,{latedef:false},{})
   result = {shim:shim}
   result.replacements=[]
   result.usage = []
@@ -43,10 +43,10 @@ _setJshintResult = (file, shim, relName)->
     if text.replace(stripCommentsRegex,'').match(glreg) and !text.match(/var\s+?window[\W]/)
       result.usage.push(global)
       text= text.replace(glreg, global)
-  jsh.JSHINT(text,{latedef:false},{});
+  jsh.JSHINT(text,{latedef:false},{})
   file = result
 
-  file.deps = _(jsh.JSHINT.data().implieds).pluck('name').difference(envVars).value();
+  file.deps = _(jsh.JSHINT.data().implieds).pluck('name').difference(envVars).value()
   if (jshglobals=_(jsh.JSHINT.data().globals).filter((item)-> item!='undefined').value()).length
     actualGlobals= _(text.match(new RegExp("\\S[\\n\\s]+?("+jshglobals.join('|')+")[\\s\\n]*?=",'g')))
     .filter((exp)->exp.indexOf('.')!=1).uniq()
@@ -85,7 +85,7 @@ _analizeFiles = (mimosaConfig, options, next) ->
       relName= path.relative(amdify.path,file.inputFileName).split(path.sep).join('/')
       shim = shims.filter((pair)-> pair[0] == relName).map((pair)-> pair[1]).first()||{}
       _setJshintResult(file,shim,relName)
-  track.track(mimosaConfig,jshintResults);
+  track.track(mimosaConfig,jshintResults)
   next()
 
 _applyRequireJSWrapper = (mimosaConfig, options, next) ->
@@ -113,9 +113,9 @@ _wrap = (file, fileAnalysis) ->
   funcStart=",function( #{_(fileAnalysis.deps).map((item)->item[0]).join(',')}, #{_(fileAnalysis.shim.deps).map((val,index)-> '__amdify__'+index).join(',')} ){"
   imports = _(fileAnalysis.shim.deps).map((val,index)-> 
     _(val[1].exports).map(
-      (exp)-> 
+      (exp)->
         if(exp.length>1)
-          _(exp).intersect(fileAnalysis.deps).map((common)->"var #{common} = __amdify__#{index}.#{common};");
+          _(exp).intersect(fileAnalysis.deps).map((common)->"var #{common} = __amdify__#{index}.#{common};")
         else if(exp.length == 1)
           _(exp).intersect(fileAnalysis.deps).map((common)->"var #{common} = __amdify__#{index}")
       ).flatten().value()
