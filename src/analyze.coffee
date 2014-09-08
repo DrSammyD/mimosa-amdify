@@ -89,7 +89,10 @@ getScope= (body,params=[],parentScope=null)->
     _(body).filter (item) ->
       potentialBlocks.contains(item.type)
     .map (item)->
-      getScope (item.consequent)?.body||[(item.consequent)]||(item.body)?.body||[(item.body)]
+      getScope (item.consequent)?.body||
+      [(item.consequent)]||
+      (item.body)?.body||
+      [(item.body)]
     .value()
   ).concat(
     _(params).pluck('name').value()
@@ -102,17 +105,33 @@ setScope = (body,params=[],parentScope = null)->
 recursive = (body) ->
   body.actions=body.actions||[]
   _(body)
-  .map((item)-> if item.type =="BlockStatement" then item.body else item)
+  .map (item)-> if item.type =="BlockStatement" then item.body else item
   .flatten()
   .sortBy (item) -> item.type != "FunctionDeclaration"
   .each (item) ->
     bodyClause[item.type].handle(item,body);
 
-hoist = (outer)->
-  _(outer.body)
-  .map((item)-> if item.type =="BlockStatement" then item.body else item)
-  .flatten()
-  .sortBy (item) -> item.type != "FunctionDeclaration"
+hoist = (outer, hoisted=[])->
+  if outer.body
+    base = _(outer.body)
+    .map (item)->
+      if item.type =="BlockStatement" then item.body else item
+    .flatten()
+    
+    hoisted.concat(
+      base.filter (item)->
+        item.type=="FunctionDeclaration"
+      .value()
+    )
+    outer.body= hoisted.concat(
+      base.filter (item)-> item.type != "FunctionDeclaration"
+      .value()
+    )
+
+    base.filter (item) ->
+      potentialBlocks.contains(item.type)
+    .each (item) ->
+      hoist(item,hoisted)
 
 
 module.exports={}
