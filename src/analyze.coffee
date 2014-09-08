@@ -26,7 +26,7 @@ RegisterClause =
 
   "FunctionDeclaration":
     handle: (item,body)->
-      setScope(item.body)
+      getScope(item.body)
       body.actions.push (state, scope)->
         setState(state,scope,item,dec.id.name)
 
@@ -68,11 +68,13 @@ RegisterClause =
 
 start = (text, availDeps, predef)->
   analysis = esprima.parse(text,{range:true})
-  setScope(analysis.body)
+  hoist(analysis)
+  getScope(analysis.body)
   recursive(analysis.body)
 
-setScope= (body,params=[],parentScope=null)->
-  body.scope=_(body).filter (item) ->
+potentialBlocks = _(["DoWhileStatement","WhileStatement","IfStatement"])
+getScope= (body,params=[],parentScope=null)->
+  scope =_(body).filter (item) ->
     item.type == "VariableDeclaration"
   .pluck 'declarations'
   .flatten()
@@ -84,12 +86,18 @@ setScope= (body,params=[],parentScope=null)->
     .pluck 'name'
     .value()
   ).concat(
+    _(body).filter (item) ->
+      potentialBlocks.contains(item.type)
+    .map (item)->
+      getScope (item.consequent)?.body||[(item.consequent)]||(item.body)?.body||[(item.body)]
+    .value()
+  ).concat(
     _(params).pluck('name').value()
   ).value()
-  body.scope.parent=parentScope
+
+setScope = (body,params=[],parentScope = null)->
+  scope.parent=parentScope
   scopeStates.push({scope:body.scope,state:{}})
-
-
 
 recursive = (body) ->
   body.actions=body.actions||[]
@@ -99,5 +107,12 @@ recursive = (body) ->
   .sortBy (item) -> item.type != "FunctionDeclaration"
   .each (item) ->
     bodyClause[item.type].handle(item,body);
+
+hoist = (outer)->
+  _(outer.body)
+  .map((item)-> if item.type =="BlockStatement" then item.body else item)
+  .flatten()
+  .sortBy (item) -> item.type != "FunctionDeclaration"
+
 
 module.exports={}
