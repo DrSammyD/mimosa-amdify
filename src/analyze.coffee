@@ -26,16 +26,18 @@ RegisterClause =
 
   "FunctionDeclaration":
     handle: (item,body)->
-      getScope(item.body)
-      body.actions.push (state, scope)->
-        setState(state,scope,item,dec.id.name)
+      hoist item
+      makeBaseScope item.body,item.params
+      body.actions.push  (parentScope)->
+        setScope body,parentScope
+        setProperty parentScope,item, item.id.name
 
   "VariableDeclaration":
     handle: (item,body)->
       _(item.declarations).each (dec)->
         result = RegisterClause.ExpressionStatement.handle(dec.init,body)
-        body.actions.push (state)->
-          setState(state,result(state),dec.id.name)
+        body.actions.push (parentScope)->
+          setProperty(parentScope,result(state),dec.id.name)
       _.last(body.actions)
 
   "SwitchStatement":
@@ -67,14 +69,14 @@ RegisterClause =
 
 
 start = (text, availDeps, predef)->
-  analysis = esprima.parse(text,{range:true})
-  hoist(analysis)
-  getScope(analysis.body)
-  recursive(analysis.body)
+  analysis = esprima.parse text,{range:true}
+  hoist analysis
+  makeBaseScope analysis.body
+  recursive analysis.body
 
-potentialBlocks = _(["DoWhileStatement","WhileStatement","IfStatement"])
-getScope= (body,params=[],parentScope=null)->
-  scope =_(body).filter (item) ->
+
+getScopeVars= (body,params=[])->
+  _(body).filter (item) ->
     item.type == "VariableDeclaration"
   .pluck 'declarations'
   .flatten()
@@ -87,9 +89,9 @@ getScope= (body,params=[],parentScope=null)->
     .value()
   ).concat(
     _(body).filter (item) ->
-      potentialBlocks.contains(item.type)
+      potentialBlocks.contains item.type
     .map (item)->
-      getScope (item.consequent)?.body||
+      getScopeVars (item.consequent)?.body||
       [(item.consequent)]||
       (item.body)?.body||
       [(item.body)]
@@ -98,9 +100,15 @@ getScope= (body,params=[],parentScope=null)->
     _(params).pluck('name').value()
   ).value()
 
-setScope = (body,params=[],parentScope = null)->
+makeBaseScope = (body,params=[])->
+  body.scope = getScopeVars body,params
+
+
+setScope = (body,parentScope = null)->
+  scope = _.clone(body.scope)
   scope.parent=parentScope
-  scopeStates.push({scope:body.scope,state:{}})
+  scopeStates.push {scope:scope,state:{}}
+  return scope;
 
 recursive = (body) ->
   body.actions=body.actions||[]
@@ -109,29 +117,86 @@ recursive = (body) ->
   .flatten()
   .sortBy (item) -> item.type != "FunctionDeclaration"
   .each (item) ->
-    bodyClause[item.type].handle(item,body);
+    bodyClause[item.type].handle item,body
 
-hoist = (outer, hoisted=[])->
+bodyBlocks = _(["DoWhileStatement"
+  "WhileStatement"
+  "ForInStatement"
+  "ForStatement"])
+
+blockBlocks = _([
+  "TryStatement"])
+
+consequentBlocks =_(["IfStatement"])
+
+casesBlocks =_(["SwitchStatement"])
+
+hoist = (outer, hoisted)->
   if outer.body
     base = _(outer.body)
     .map (item)->
       if item.type =="BlockStatement" then item.body else item
     .flatten()
-    
-    hoisted.concat(
+    hoisted.push(
       base.filter (item)->
         item.type=="FunctionDeclaration"
       .value()
     )
-    outer.body= hoisted.concat(
-      base.filter (item)-> item.type != "FunctionDeclaration"
-      .value()
-    )
+    base.filter (item) ->
+      bodyBlocks.contains(item.type)
+    .each (item) ->
+      if hoist(item.block,hoisted)
+      then item.body={"type": "BlockStatement","body": []}
 
     base.filter (item) ->
-      potentialBlocks.contains(item.type)
+      blockBlocks.contains(item.type)
     .each (item) ->
-      hoist(item,hoisted)
+      _([item]).concat(item.handlers).each (item) ->
+        if hoist(item.block,hoisted)
 
+    base.filter (item) ->
+      consequentBlocks.contains(item.type)
+    .each (item) ->
+      if hoist(item.consequent,hoisted)
+      then item.consequent={"type": "BlockStatement","body": []}
+      if alternate && hoist(item.alternate,hoisted)
+      then item.alternate={"type": "BlockStatement","body": []}
+    false
+  else if outer.type == "FunctionDeclaration"
+    hoisted.push(outer)
+    true
+  else if outer.type = ""
+
+betterHoist = (statement,hoisted,parent,key)->
+  check =statement.type
+  if check=="BlockStatement"
+    then _(statement.body).each
+      (bodyItem, key)-> betterHoist(bodyItem,hoisted,statement.body,key)
+  if check=="FunctionDeclaration" then
+    hoisted.push(statement)
+    parent[key] = "type": "EmptyStatement"
+  if bodyBlocks.contains(check)
+    betterHoist(statement.body,hoisted,statement,"body")
+  if consequentBlocks.contains(check)
+    betterHoist(statement.consequent,hoisted,statement,"consequent")
+    betterHoist(statement.alternate,hoisted,statement,"alternate")
+  if casesBlocks.contains(check)
+    _(statement.cases).each
+      (caseItem, key)-> betterHoist(caseItem,hoisted,statement.cases,key)
+  if blockBlocks.contains(check)
+    
+
+
+prepend = (outer, hoisted = [])->
+  hoist(outer,hoisted)
+  base = _(outer.body)
+  .map (item)->
+    if item.type =="BlockStatement" then item.body else item
+  .flatten()
+
+  outer.body= _.flatten(hoisted).concat(
+    base.filter (item)-> item.type != "FunctionDeclaration"
+    .value()
+  )
 
 module.exports={}
