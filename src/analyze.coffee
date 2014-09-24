@@ -4,52 +4,227 @@ require 'jshint'
 scopeStates = _([])
 
 Unknowable= {Unknowable:true}
-RegisterClause =
+
+
+Statements =
   "ExpressionStatement":
-    handle: (item,body)->
+    handle: (item,parentBody)->
 
   "FunctionDeclaration":
-    handle: (item,body)->
-      prepend item
+    handle: (item,parentBody)->
+      prepend(item)
       makeBaseScope item.body,item.params
-      body.actions.push (parentScope)->
-        setScope body,parentScope
-        setProperty parentScope,item, item.id.name
+      parentBody.actions.push (parentScope)->
+        prepend(item)
+        setScope parentBody,parentScope
+        setVariable parentScope,item,item.id.name
+        null
 
   "VariableDeclaration":
-    handle: (item,body)->
+    handle: (item,parentBody)->
       _(item.declarations).each (dec)->
-        result = RegisterClause.ExpressionStatement.handle(dec.init,body)
-        body.actions.push (parentScope)->
-          setProperty(parentScope,result(state),dec.id.name)
-      _.last(body.actions)
+        result = getExpression(dec.init,parentBody)
+        parentBody.actions.push (parentScope)->
+          setVariable(parentScope,result(parentScope),dec.id.name)
+          null
 
   "SwitchStatement":
-    handle: (item,body)->
+    handle: (item,parentBody)->
 
   "DoWhileStatement":
-    handle: (item,body)->
+    handle: (item,parentBody)->
 
   "WhileStatement":
-    handle: (item,body)->
+    handle: (item,parentBody)->
 
   "IfStatement":
-    handle: (item,body)->
+    handle: (item,parentBody)->
 
   "TryStatement":
-    handle: (item,body)->
+    handle: (item,parentBody)->
 
   "ThrowStatement":
-    handle: (item,body)->
+    handle: (item,parentBody)->
 
   "WithStatement":
-    handle: (item,body)->
+    handle: (item,parentBody)->
 
   "ForInStatement":
-    handle: (item,body)->
+    handle: (item,parentBody)->
 
   "ForStatement":
-    handle: (item,body)->
+    handle: (item,parentBody)->
+
+Expressions=
+  "FunctionExpression":
+    handle: (item,parentBody)->
+      prepend(item)
+      makeBaseScope item.body,item.params
+      (parentScope)->
+        prepend item
+        setScope body,parentScope
+        item
+  "AssignmentExpression":
+    handle: (item,parentBody)->
+      result = getExpression(item.right,parentBody)
+      object = getObjectExpression(item.left,parentBody)
+      property = getAssignmentExpression(item.left,parentBody,item.operator)
+      (parentScope)->
+        property(parentScope,result,object)
+  "Identifier":
+    handle: (item,parentBody)->
+      (parentScope)->
+        getVariable(parentScope,item.name)
+  "MemberExpression":
+    handle: (item,parentBody)->
+      object=getExpression(item.object,parentBody)
+      property=getExpression(item.property,parentBody)
+      (parentScope)->
+        object(parentScope)[property(parentScope)]
+  "ObjectExpression":
+    handle:(item,parentBody)->
+      props=_(item.properties).chain().map (item)->
+        [getKey(item.key,parentBody),
+        getExpression(item.value,parentBody)]
+      (parentScope)->
+        props.map (pair)->
+          [pair[0](parentScope),pair[1](parentScope)]
+        .object()
+        .value()
+  "ArrayExpression":
+    handle:(item,parentBody)->
+      props=_(item.properties).chain().map (item)->
+        if item
+          getExpression(item.value,parentBody)
+      (parentScope)->
+        props.map (item)->
+          if item
+            item(parentScope)
+        .value()
+  "Literal":
+    handle:(item,parentBody)->
+      (parentBody)->
+        item.value
+
+
+getExpression= (item,parentBody)->
+  Expressions[item.type].handle(item,parentBody)
+getKey=(item,parentBody)->
+  (parentBody)->
+    item.name||item.value
+getObjectExpression= (item,parentBody)->
+  if item.type=="MemberExpression"
+    getExpression(item.object,parentBody)
+getAssignmentExpression=(item,parentBody,operator)->
+  if item.type=="MemberExpression"
+    prop= getExpression(item.property,parentBody)
+    (parentScope,result,object)->
+      assignWithOperator object(parentScope)
+      prop(parentScope)
+      operator
+      result(parentScope)
+  if item.type=="Identifier"
+    (parentScope,result,object)->
+      setVariable(parentScope,result(parentScope),item.name)
+
+assignWithOperator=(object,prop,operator,prefix,result)->
+  switch(operator)
+    when "="
+      `object[prop]=result`
+    when "+="
+      `object[prop]+=result`
+    when "-="
+      `object[prop]-=result`
+    when "*="
+      `object[prop]*=result`
+    when "/="
+      `object[prop]/=result`
+    when "%="
+      `object[prop]%=result`
+    when "<<="
+      `object[prop]<<=result`
+    when ">>="
+      `object[prop]>>=result`
+    when ">>>="
+      `object[prop]>>>=result`
+    when "&="
+      `object[prop]&=result`
+    when "^="
+      `object[prop]^=result`
+    when "|="
+      `object[prop]|=result`
+
+binaryWithOperator=(object,prop,operator,prefix,result)->
+  switch(operator)
+    when "=="
+      `object[prop]==result`
+    when "!="
+      `object[prop]!=result`
+    when "==="
+      `object[prop]===result`
+    when "!=="
+      `object[prop]!==result`
+    when "<"
+      `object[prop]<result`
+    when "<="
+      `object[prop]<=result`
+    when ">"
+      `object[prop]>result`
+    when ">="
+      `object[prop]>=result`
+    when "<<"
+      `object[prop]<<result`
+    when ">>"
+      `object[prop]>>result`
+    when ">>>"
+      `object[prop]>>>result`
+    when "+"
+      `object[prop]+result`
+    when "-"
+      `object[prop]-result`
+    when "*"
+      `object[prop]*result`
+    when "/"
+      `object[prop]/result`
+    when "%"
+      `object[prop]%result`
+    when "|"
+      `object[prop]|result`
+    when "^"
+      `object[prop]^result`
+    when "^"
+      `object[prop]^result`
+    when "in"
+      `object[prop] in result`
+    when "instanceof"
+      `object[prop] instanceof result`
+
+updateWithOperator=(object,prop,operator,prefix)->
+  switch(operator)
+    when "--"
+      if prefix then --object[prop] else object[prop]--
+    when "++"
+      if prefix then ++object[prop] else object[prop]++
+
+unaryWithOperator=(object,prop,operator)->
+  switch(operator)
+    when "-"
+      `-object[prop]`
+    when "+"
+      `+object[prop]`
+    when "!"
+      `!object[prop]`
+    when "~"
+      `~object[prop]`
+    when "typeof"
+      `typeof object[prop]`
+    when "void"
+      `void object[prop]`
+    when "delete"
+      `delete object[prop]`
+
+
+operatorExpressions(object,prop,operator,result)
 
 
 start = (text, availDeps, predef)->
@@ -72,35 +247,27 @@ getScopeVars= (body,params=[])->
     .pluck 'name'
     .value()
   ).concat(
-    _(body).filter (item) ->
-      potentialBlocks.contains item.type
-    .map (item)->
-      getScopeVars (item.consequent)?.body||
-      [(item.consequent)]||
-      (item.body)?.body||
-      [(item.body)]
-    .value()
-  ).concat(
     _(params).pluck('name').value()
   ).value()
 
 makeBaseScope = (body,params=[])->
   body.scope = getScopeVars body,params
 
-setProperty = (scope,result,propertyPath)->
-  state=getState(_.first(propertyPath))
-  _(propertyPath.slice(0,-1)).each (prop)->
-    state = state?[prop]?.current
-  if state
-    state[propertyPath.slice(-1)] = state[propertyPath.slice(-1)]||{}
-    state[propertyPath.slice(-1)].current = result
+setVariable = (scope,result,variable,operator)->
+  scopeState=getScopeState(scope,variable)
+  if scopeState.scope.indexOf(variable) == -1
+    scopeState.scope.push(variable)
+  assignWithOperator(scopeState.state,variable,operator,result)
 
-getState = (scope,topProp)->
-  while(!scope[topProp] && scope.parent)
+getVariable = (scope,variable)->
+  getScopeState(scope,variable).state
+
+getScopeState = (scope,variable)->
+  while(!scope[variable] && scope.parent)
     scope = scope.parent
-  scopeStates.filter (scopeState)->
+  scopeStates.first (scopeState)->
     scopeState.scope==scope
-  .pluck 'state'
+  .first()||scopeStates.first()
 
 setScope = (body,parentScope = null)->
   scope = _.clone(body.scope)
@@ -162,9 +329,11 @@ hoist = (statement,hoisted,parent,key)->
 
 
 prepend = (outer, hoisted = [])->
-  _(outer.body).each (bodyItem)->
-    hoist(bodyItem,hoisted)
+  if outer.hoisted
+    _(outer.body).each (bodyItem)->
+      hoist(bodyItem,hoisted)
 
-  outer.body= _(hoisted).flatten().concat(outer.body).value()
+    outer.body= _(hoisted).flatten().concat(outer.body).value()
+    outer.hoisted=true
 
 module.exports={}
