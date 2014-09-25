@@ -1,3 +1,5 @@
+#coffeehint no_backticks:{level:"ignore"}
+
 _= require 'lodash'
 esprima = require 'esprima'
 require 'jshint'
@@ -103,8 +105,20 @@ Expressions=
         .value()
   "Literal":
     handle:(item,parentBody)->
-      (parentBody)->
+      (parentScope)->
         item.value
+  "LogicalExpression":
+    handle (item, parentBody)->
+      left = getExpression(item.left, parentBody)
+      right = getExpression(item.right, parentBody)
+      (parentScope)->
+        logicWithOperator(left(parentScope),right(parentScope),item.operator)
+  "UnaryExpression":
+    handle (item, parentBody)->
+      argument = getExpression(item.argument, parentBody)
+      (parentScope)->
+        unaryWithOperator(argument(parentScope),item.operator)
+
 
 
 getExpression= (item,parentBody)->
@@ -127,7 +141,7 @@ getAssignmentExpression=(item,parentBody,operator)->
     (parentScope,result,object)->
       setVariable(parentScope,result(parentScope),item.name)
 
-assignWithOperator=(object,prop,operator,prefix,result)->
+assignWithOperator=(object,prop,operator,result)->
   switch(operator)
     when "="
       `object[prop]=result`
@@ -154,50 +168,50 @@ assignWithOperator=(object,prop,operator,prefix,result)->
     when "|="
       `object[prop]|=result`
 
-binaryWithOperator=(object,prop,operator,prefix,result)->
+binaryWithOperator=(left,right,operator)->
   switch(operator)
     when "=="
-      `object[prop]==result`
+      `left==right`
     when "!="
-      `object[prop]!=result`
+      `left!=right`
     when "==="
-      `object[prop]===result`
+      `left===right`
     when "!=="
-      `object[prop]!==result`
+      `left!==right`
     when "<"
-      `object[prop]<result`
+      `left<right`
     when "<="
-      `object[prop]<=result`
+      `left<=right`
     when ">"
-      `object[prop]>result`
+      `left>right`
     when ">="
-      `object[prop]>=result`
+      `left>=right`
     when "<<"
-      `object[prop]<<result`
+      `left<<right`
     when ">>"
-      `object[prop]>>result`
+      `left>>right`
     when ">>>"
-      `object[prop]>>>result`
+      `left>>>right`
     when "+"
-      `object[prop]+result`
+      `left+right`
     when "-"
-      `object[prop]-result`
+      `left-right`
     when "*"
-      `object[prop]*result`
+      `left*right`
     when "/"
-      `object[prop]/result`
+      `left/right`
     when "%"
-      `object[prop]%result`
+      `left%right`
     when "|"
-      `object[prop]|result`
+      `left|right`
     when "^"
-      `object[prop]^result`
+      `left^right`
     when "^"
-      `object[prop]^result`
+      `left^right`
     when "in"
-      `object[prop] in result`
+      `left in right`
     when "instanceof"
-      `object[prop] instanceof result`
+      `left instanceof right`
 
 updateWithOperator=(object,prop,operator,prefix)->
   switch(operator)
@@ -206,26 +220,29 @@ updateWithOperator=(object,prop,operator,prefix)->
     when "++"
       if prefix then ++object[prop] else object[prop]++
 
-unaryWithOperator=(object,prop,operator)->
+logicWithOperator=(left,right,operator)->
+  switch(operator)
+    when "||"
+      left||right
+    when "&&"
+      left&&right
+
+unaryWithOperator=(argument,operator)->
   switch(operator)
     when "-"
-      `-object[prop]`
+      `-argument`
     when "+"
-      `+object[prop]`
+      `+argument`
     when "!"
-      `!object[prop]`
+      `!argument`
     when "~"
-      `~object[prop]`
+      `~argument`
     when "typeof"
-      `typeof object[prop]`
+      `typeof argument`
     when "void"
-      `void object[prop]`
+      `void argument`
     when "delete"
-      `delete object[prop]`
-
-
-operatorExpressions(object,prop,operator,result)
-
+      `delete argument`
 
 start = (text, availDeps, predef)->
   analysis = esprima.parse text,{range:true}
