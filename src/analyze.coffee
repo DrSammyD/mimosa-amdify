@@ -66,13 +66,6 @@ Expressions=
         prepend item
         setScope body,parentScope
         item
-  "AssignmentExpression":
-    handle: (item,parentBody)->
-      result = getExpression(item.right,parentBody)
-      object = getObjectExpression(item.left,parentBody)
-      property = getAssignmentExpression(item.left,parentBody,item.operator)
-      (parentScope)->
-        property(parentScope,result,object)
   "Identifier":
     handle: (item,parentBody)->
       (parentScope)->
@@ -118,6 +111,19 @@ Expressions=
       argument = getExpression(item.argument, parentBody)
       (parentScope)->
         unaryWithOperator(argument(parentScope),item.operator)
+  "UpdateExpression":
+    handle (item, parentBody)->
+      object = getObjectExpression(item.argument,parentBody)
+      property = getUpdateExpression(item.argument,parentBody,item.operator)
+      (parentScope)->
+        updateWithOperator(argument(parentScope),item.operator)
+  "AssignmentExpression":
+    handle: (item,parentBody)->
+      result = getExpression(item.right,parentBody)
+      object = getObjectExpression(item.left,parentBody)
+      property = getAssignmentExpression(item.left,parentBody,item.operator)
+      (parentScope)->
+        property(parentScope,result,object)
 
 
 
@@ -133,13 +139,19 @@ getAssignmentExpression=(item,parentBody,operator)->
   if item.type=="MemberExpression"
     prop= getExpression(item.property,parentBody)
     (parentScope,result,object)->
-      assignWithOperator object(parentScope)
-      prop(parentScope)
-      operator
-      result(parentScope)
+      assignWithOperator object(parentScope), prop(parentScope),
+      operator, result(parentScope)
   if item.type=="Identifier"
     (parentScope,result,object)->
-      setVariable(parentScope,result(parentScope),item.name)
+      setVariable(parentScope,result(parentScope),item.name,operator)
+getUpdateExpression=(item,parentBody,operator)->
+  if item.type=="MemberExpression"
+    prop= getExpression(item.property,parentBody)
+    (parentScope,object)->
+      updateWithOperator object(parentScope), prop(parentScope), operator
+  if item.type=="Identifier"
+    (parentScope,object)->
+      updateVariable(parentScope,item.name,operator)
 
 assignWithOperator=(object,prop,operator,result)->
   switch(operator)
@@ -275,6 +287,10 @@ setVariable = (scope,result,variable,operator)->
   if scopeState.scope.indexOf(variable) == -1
     scopeState.scope.push(variable)
   assignWithOperator(scopeState.state,variable,operator,result)
+
+updateVariable = (scope,result,variable,operator)->
+  scopeState=getScopeState(scope,variable)
+  updateWithOperator(scopeState.state,variable,operator)
 
 getVariable = (scope,variable)->
   getScopeState(scope,variable).state

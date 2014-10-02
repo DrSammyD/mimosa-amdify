@@ -14,12 +14,12 @@ WhileStatement
 WithStatement
 
 CatchClause
-Literal
+
 LabeledStatement
-Property
+
 ReturnStatement
 SwitchCase
-Identifier
+
 ArrayExpression
 AssignmentExpression
 BinaryExpression
@@ -27,11 +27,10 @@ CallExpression
 ConditionalExpression
 FunctionExpression
 LogicalExpression
-MemberExpression
+
 NewExpression
-ObjectExpression
+
 SequenceExpression
-ThisExpression
 ThisExpression
 UnaryExpression
 UpdateExpression
